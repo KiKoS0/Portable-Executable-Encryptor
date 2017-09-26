@@ -3,6 +3,7 @@
 #define PACKER_H
 
 #include <Windows.h>
+#include <stdio.h>
 #include <vector>
 #include <memory>
 #include <fstream>
@@ -26,11 +27,17 @@ private:
 
 class ASection : private Uncopyable {
 	std::string SectionName;
+	// preferred section size will be aligned in functions later and aligned value will be in AlignedSectionSize
 	size_t SectionSize;
+	// Initially 0 until a function sets its value
 	DWORD AlignedSectionSize;
 	size_t CodeSize;
+	// Pointer to the new Exe header found in the Image_Dos_Header of the PE
 	LONG e_lfanew;
+	// Could be easily found here you just combine them by addition "https://msdn.microsoft.com/en-us/library/windows/desktop/ms680341(v=vs.85).aspx"
 	DWORD Charachteristics;
+	// Initially 0, could be set to RVA of of a new added section by a function if you want to change the PE OEP
+	DWORD NewAddressOEP;
 	ASection();
 public:
 	std::shared_ptr<char> CodeP;
@@ -40,14 +47,21 @@ public:
 		e_lfanew(NewExeHeaderP),
 		Charachteristics(Chararacter),
 		CodeP(CodePointer),
-		CodeSize(CodeS) {};
+		CodeSize(CodeS),
+		AlignedSectionSize(0),
+		NewAddressOEP(0){};
+
+	// Get Methods
 	size_t getSectionSize()const;
 	DWORD getAlignedSectionSize()const;
-	void setAlignedSectionSize(DWORD size);
 	std::string getSectionName()const;
 	DWORD getCharachteristics()const;
-	LONG getPE_lfanew()const ;
-	size_t getCodeSize()const ;
+	LONG getPE_lfanew()const;
+	size_t getCodeSize()const;
+	DWORD getOEP() const;
+	// Set Methods
+	void setAlignedSectionSize(DWORD size);
+	void setOEP(DWORD);
 };
 
 struct PE_FILE
@@ -79,6 +93,8 @@ WORD DetectArchitechture(std::shared_ptr<char>FileBin, LONG HeaderOffset);
 void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, std::string OutputFileName, ASection& SectionToAdd);
 
 void AddSectionData(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, std::string OutputFileName, ASection& SectionToAdd);
+
+void XorCode(char* bin,size_t sz, byte key);
 
 DWORD align(DWORD size, DWORD align, DWORD addr);
 

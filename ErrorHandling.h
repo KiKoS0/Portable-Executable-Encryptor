@@ -4,10 +4,11 @@
 #define PACKER_ERROR_H
 #include <iostream>
 #include <string>
+#include <stdarg.h>
+#include <stdio.h>
 
 enum ErrorType { Error, INFO, VALID, FATAL };
-void DBGPrint(std::string msg, ErrorType ErrorMsgType);
-
+void DBGPrint(ErrorType ErrorMsgType,const char* msg,...);
 
 class ErrorReport {
 	std::string msg;

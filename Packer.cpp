@@ -37,7 +37,7 @@ std::tuple<bool, std::shared_ptr<char>, std::streampos> OpenBinary(std::wstring 
 
 PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 {
-	DBGPrint("Begin Parsing file", ErrorType::INFO);
+	DBGPrint( ErrorType::INFO,"Begin Parsing file");
 	PE_FILE pefile{};
 	const WORD PESignature = 0x5A4D;
 	// Copy the IMAGE_DOS_HEADER of the binary
@@ -47,23 +47,23 @@ PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 		throw(ErrorReport("Not a Portable Executable File", ErrorType::FATAL));
 	}
 	// Probably a PE File 
-	DBGPrint("Detected PE Signature Probably PE File", ErrorType::INFO);
+	DBGPrint(ErrorType::INFO,"Detected PE Signature Probably PE File" );
 	WORD Architechture = DetectArchitechture(FileBin, pefile.ids.e_lfanew);
 	unsigned IMAGE_NT_SIZE;
 	switch (Architechture) {
 		// Detect Architechture
 	case IMAGE_FILE_MACHINE_I386: {
 		//x86
-		DBGPrint("IMAGE_FILE_MACHINE_I386 Detected", ErrorType::INFO);
+		DBGPrint(ErrorType::INFO,"IMAGE_FILE_MACHINE_I386 Detected");
 		IMAGE_NT_SIZE = sizeof(IMAGE_NT_HEADERS32);
 	}break;
 	case IMAGE_FILE_MACHINE_AMD64: {
 		//x64
-		DBGPrint("IMAGE_FILE_MACHINE_AMD64 Detected", ErrorType::INFO);
+		DBGPrint(ErrorType::INFO, "IMAGE_FILE_MACHINE_AMD64 Detected");
 		throw(ErrorReport("IMAGE_FILE_MACHINE_AMD64 Architechture not implemented yet, sorry", ErrorType::FATAL));
 	}break;
 	case IMAGE_FILE_MACHINE_IA64: {
-		DBGPrint("IMAGE_FILE_MACHINE_IA64(Itanium) Detected", ErrorType::INFO);
+		DBGPrint( ErrorType::INFO,"IMAGE_FILE_MACHINE_IA64(Itanium) Detected");
 		throw(ErrorReport("IMAGE_FILE_MACHINE_IA64(Itanium) Architechture not implemented yet, sorry", ErrorType::FATAL));
 	}break;
 	default: {
@@ -97,21 +97,21 @@ PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 	auto First_Section_Header = PE_Header + 0x18 + pefile.inh32.FileHeader.SizeOfOptionalHeader;
 	auto test = PE_Header - sizeof(pefile.ids) - sizeof(IMAGE_NT_HEADERS32) - pefile.MS_DOS_STUB.size();
 	// Copy section headers
-	DBGPrint("Begin Section headers Copy", ErrorType::INFO);
+	DBGPrint(ErrorType::INFO,"Begin Section headers Copy");
 	for (auto i = 0; i < pefile.inh32.FileHeader.NumberOfSections; ++i)
 	{
 		memcpy_s(&pefile.ish[i], sizeof(IMAGE_SECTION_HEADER), First_Section_Header + (i * sizeof(IMAGE_SECTION_HEADER)), sizeof(IMAGE_SECTION_HEADER));
 	}
-	DBGPrint("End Section headers Copy", ErrorType::VALID);
+	DBGPrint( ErrorType::VALID,"End Section headers Copy");
 	// Copy Sections										
-	DBGPrint("Begin Section Copy", ErrorType::INFO);
+	DBGPrint(ErrorType::INFO,"Begin Section Copy");
 		for (auto i = 0; i < pefile.inh32.FileHeader.NumberOfSections; ++i)
 	{
 		std::shared_ptr<char> t_char(new char[pefile.ish[i].SizeOfRawData]{}, std::default_delete<char[]>()); // Section
 		memcpy_s(t_char.get(), pefile.ish[i].SizeOfRawData, FileBin.get() + pefile.ish[i].PointerToRawData, pefile.ish[i].SizeOfRawData); // copy sections.
 		pefile.Sections.push_back(t_char);
 	}
-	DBGPrint("End Section Copy", ErrorType::VALID);
+	DBGPrint(ErrorType::VALID,"End Section Copy");
 	int sections_size{};
 	for (WORD i = 0; i < pefile.inh32.FileHeader.NumberOfSections; ++i)
 	{
@@ -121,7 +121,7 @@ PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 	size_t total_size = sections_size + pefile.inh32.OptionalHeader.SizeOfHeaders;
 	pefile.set_sizes(sizeof(pefile.ids), stub_size, sizeof(pefile.inh32), number_of_sections * sizeof(IMAGE_SECTION_HEADER), sections_size, total_size);
 	// Exact Total size must consider space between sections which is huge sometimes and the file alignment in optional-header
-	DBGPrint("Parsing Completed", ErrorType::VALID);
+	DBGPrint(ErrorType::VALID,"Parsing Completed");
 	return pefile;
 }
 
@@ -144,28 +144,41 @@ DWORD align(DWORD size, DWORD align, DWORD addr) {
 }
 
 void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, std::string OutputFileName, ASection& SectionToAdd) {
+	// Maybe will add this check later
+	DBGPrint(INFO,"Please check manually that there is enough space between the last section header and first section to inject the header in between\n(Ctrl+C to quit) or press any key to continue");
+	//unsigned char* test = (unsigned char*)std::get<1>(bin).get() + SH[1].PointerToRawData; .text file address for later use
+	//system("pause");
 	std::ofstream os(OutputFileName, std::ios::ate | std::ios::binary | std::ios::out);
 	if (os.is_open())
 	{
+		DBGPrint(INFO, "Begin Adding Section Header");
 		DWORD PE_Pointer = SectionToAdd.getPE_lfanew();
+		// Pointer to the File Header inside the Image_NT_Header32 struct
 		auto FH = (PIMAGE_FILE_HEADER)(std::get<1>(bin).get() + PE_Pointer + sizeof(DWORD));
+		// Pointer to the Optional Header inside the Image_NT_Header32 struct
 		auto OH = (PIMAGE_OPTIONAL_HEADER)(std::get<1>(bin).get() + PE_Pointer + sizeof(DWORD) + sizeof(IMAGE_FILE_HEADER));
+		// Pointer to the section headers
 		auto SH = (PIMAGE_SECTION_HEADER)(std::get<1>(bin).get() + PE_Pointer + sizeof(IMAGE_NT_HEADERS));
+		// Preparing the Section header space
 		ZeroMemory(&SH[FH->NumberOfSections], sizeof(IMAGE_SECTION_HEADER));
+		// Copying the Section header name
 		CopyMemory(&SH[FH->NumberOfSections].Name, SectionToAdd.getSectionName().c_str(), 8);
-		DWORD AlignedVirtualSize = align(SectionToAdd.getSectionSize(), OH->SectionAlignment, 0);
-		SH[FH->NumberOfSections].Misc.VirtualSize = AlignedVirtualSize;
+		// Aligning values with the SectionAlignment(memory) and the FileAlignment and adding it to the section header created
+		SH[FH->NumberOfSections].Misc.VirtualSize = align(SectionToAdd.getSectionSize(), OH->SectionAlignment, 0);
 		SH[FH->NumberOfSections].VirtualAddress = align(SH[FH->NumberOfSections - 1].Misc.VirtualSize, OH->SectionAlignment, SH[FH->NumberOfSections - 1].VirtualAddress);
-		// If the section is not available SizeOfRawData or PointerToRawData should be 0 or the program will obviously crash
+		// If the section is not available then SizeOfRawData or PointerToRawData should be 0 or the file will not run obviously
 		DWORD AlignedSizeOfRawData = align(SectionToAdd.getSectionSize(), OH->FileAlignment, 0);
 		SH[FH->NumberOfSections].SizeOfRawData = AlignedSizeOfRawData;
 		SectionToAdd.setAlignedSectionSize(AlignedSizeOfRawData);
 		SH[FH->NumberOfSections].PointerToRawData = align(SH[FH->NumberOfSections - 1].SizeOfRawData, OH->FileAlignment, SH[FH->NumberOfSections - 1].PointerToRawData);
-		SH[FH->NumberOfSections].Characteristics = SectionToAdd.getCharachteristics();  /*0xE00000E0*/
+		SH[FH->NumberOfSections].Characteristics = SectionToAdd.getCharachteristics();  /*0xE00000E0= IMAGE_SCN_MEM_WRITE  | IMAGE_SCN_CNT_CODE  |
+																						 IMAGE_SCN_CNT_UNINITIALIZED_DATA  | IMAGE_SCN_MEM_EXECUTE |
+																						 IMAGE_SCN_CNT_INITIALIZED_DATA    | IMAGE_SCN_MEM_READ */									
 		OH->SizeOfImage = SH[FH->NumberOfSections].VirtualAddress + SH[FH->NumberOfSections].Misc.VirtualSize;
+		// Incrementing the sections number in the File Header
 		FH->NumberOfSections += 1;
-		//New
 		OH->AddressOfEntryPoint = 0x0001F000;
+		//XorCode(std::get<1>(bin).get() + SH[1].PointerToRawData, SH[1].SizeOfRawData,0xA5);
 		os.write(std::get<1>(bin).get(), std::get<2>(bin));
 		os.close();
 	}
@@ -192,6 +205,15 @@ void AddSectionData(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin
 		throw(ErrorReport("<AddSectionData> Cannot Open file", ErrorType::Error));
 }
 
+void XorCode(char* bin, size_t sz, byte key)
+{
+	size_t i;
+	for (i=0;i <sz;++i)
+	{
+		bin[i] ^=key;
+	}
+}
+
 size_t ASection::getSectionSize() const
 {
 	return SectionSize;
@@ -205,6 +227,11 @@ DWORD ASection::getAlignedSectionSize() const
 void ASection::setAlignedSectionSize(DWORD size)
 {
 	AlignedSectionSize = size;
+}
+
+void ASection::setOEP(DWORD newOEP)
+{
+	NewAddressOEP = newOEP;
 }
 
 std::string ASection::getSectionName() const
@@ -224,5 +251,10 @@ LONG ASection::getPE_lfanew() const
 
 size_t ASection::getCodeSize() const
 {
-	return this->CodeSize;
+	return CodeSize;
+}
+
+DWORD ASection::getOEP() const
+{
+	return NewAddressOEP;
 }

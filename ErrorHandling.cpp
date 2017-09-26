@@ -12,12 +12,13 @@ ErrorType ErrorReport::getErrorType() const
 
 void ErrorReport::Report() const
 {
-	DBGPrint(msg, ErrorMsgType);
+	auto buff =(const char*) msg.c_str();
+	DBGPrint(ErrorMsgType, buff);
 }
 
 // End Class Methods
 
-void DBGPrint(std::string msg, ErrorType ErrorMsgType)
+void DBGPrint(ErrorType ErrorMsgType, const char* format,...)
 {
 #ifndef NDEBUG
 	switch (ErrorMsgType) {
@@ -34,11 +35,15 @@ void DBGPrint(std::string msg, ErrorType ErrorMsgType)
 		std::cout << "[FATAL] ";
 		break;
 	default:
-		std::cout << "ERROR NOT DEFINED== ";
+		std::cout << "UNKNOWN ERROR== ";
 		break;
 
 	}
-	std::cout << msg << std::endl;
+	va_list args;
+	va_start(args, format);
+	vfprintf(stdout, format, args);
+	va_end(args);
+	std::cout << /*msg*/std::endl;
 #endif // _DEBUG
 
 }
