@@ -20,7 +20,7 @@ void ErrorReport::Report() const
 
 void DBGPrint(ErrorType ErrorMsgType, const char* format,...)
 {
-#ifndef NDEBUG
+//#ifndef NDEBUG
 	switch (ErrorMsgType) {
 	case Error:
 		std::cout << "[-] ";
@@ -43,8 +43,8 @@ void DBGPrint(ErrorType ErrorMsgType, const char* format,...)
 	va_start(args, format);
 	vfprintf(stdout, format, args);
 	va_end(args);
-	std::cout << /*msg*/std::endl;
-#endif // _DEBUG
+	std::cout << std::endl;
+//#endif // _DEBUG
 
 }
 

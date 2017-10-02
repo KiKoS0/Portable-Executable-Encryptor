@@ -38,6 +38,8 @@ class ASection : private Uncopyable {
 	DWORD Charachteristics;
 	// Initially 0, could be set to RVA of of a new added section by a function if you want to change the PE OEP
 	DWORD NewAddressOEP;
+	// Section id when set in a PE (initially 0)
+	size_t SectionNumber;
 	ASection();
 public:
 	std::shared_ptr<char> CodeP;
@@ -49,19 +51,25 @@ public:
 		CodeP(CodePointer),
 		CodeSize(CodeS),
 		AlignedSectionSize(0),
-		NewAddressOEP(0){};
+		NewAddressOEP(0),
+		SectionNumber(0){};
 
 	// Get Methods
+
 	size_t getSectionSize()const;
 	DWORD getAlignedSectionSize()const;
 	std::string getSectionName()const;
 	DWORD getCharachteristics()const;
 	LONG getPE_lfanew()const;
 	size_t getCodeSize()const;
-	DWORD getOEP() const;
+	DWORD getEP() const;
+	size_t getSectionNumber() const;
+
 	// Set Methods
+
+	void setSectionNumber(size_t);
 	void setAlignedSectionSize(DWORD size);
-	void setOEP(DWORD);
+	void setEP(DWORD);
 };
 
 struct PE_FILE
@@ -82,20 +90,32 @@ struct PE_FILE
 	void set_sizes(size_t, size_t, size_t, size_t, size_t, size_t);
 };
 
-
+// Loads the file binary into memory returns a tuple with a true boolean if the function succeeded
 std::tuple<bool, std::shared_ptr<char>, std::streampos> OpenBinary(std::wstring filename);
 
+// Parse a Portable Executable File (x86) (x64 later maybe)
 PE_FILE ParsePE(std::shared_ptr<char>FileBin);
 
+// Detects the file architecture compatibility (could fail horribly needs fix)
 WORD DetectArchitechture(std::shared_ptr<char>FileBin, LONG HeaderOffset);
 
-// This function will also change the binary file in memory
-void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, std::string OutputFileName, ASection& SectionToAdd);
-
+// Adds a header section between the last section header and the first section data (WARNING: Only in memory, doesn't write to file)
+void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd);
+// Section data writer (WARNING:write to file doesn't change the binary in memory)
 void AddSectionData(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, std::string OutputFileName, ASection& SectionToAdd);
 
-void XorCode(char* bin,size_t sz, byte key);
+// Encryption function (xor the byte and increments the key)
+void XorIncCode(char* bin,size_t sz, byte key);
 
+// Memory and file alignment function
 DWORD align(DWORD size, DWORD align, DWORD addr);
+
+// Encryption caller function you can change the encryption function to whatever you want (WARNING: Only in memory, doesn't write to file)
+void EncryptTextBin(std::tuple<bool, std::shared_ptr<char>, std::streampos>& filebin, ASection& SectionToAdd, char * bin, size_t sz, byte key= 0xa5);
+
+// Change File Entry Point (WARNING: Only in memory, doesn't write to file)
+void ChangeEP(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd);
+
+DWORD OffsetToRVA(DWORD offset, IMAGE_SECTION_HEADER *is_hdr, unsigned scount);
 
 #endif
