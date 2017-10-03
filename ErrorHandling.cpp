@@ -34,10 +34,12 @@ void DBGPrint(ErrorType ErrorMsgType, const char* format,...)
 	case FATAL:
 		std::cout << "[FATAL] ";
 		break;
+	case WARNING:
+		std::cout << "[iii] ";
+		break;
 	default:
 		std::cout << "UNKNOWN ERROR== ";
 		break;
-
 	}
 	va_list args;
 	va_start(args, format);

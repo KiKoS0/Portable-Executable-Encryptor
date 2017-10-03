@@ -14,6 +14,7 @@
 #include <future>
 #include <filesystem>
 #include <vector>
+#include <sstream>
 #include "ErrorHandling.h"
 
 class Uncopyable {
@@ -117,5 +118,9 @@ void EncryptTextBin(std::tuple<bool, std::shared_ptr<char>, std::streampos>& fil
 void ChangeEP(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd);
 
 DWORD OffsetToRVA(DWORD offset, IMAGE_SECTION_HEADER *is_hdr, unsigned scount);
+
+int char2int(char input);
+// Returns the section index or -1 if it didn't find it
+int FindSection(PE_FILE& pe, const char* sec);
 
 #endif

@@ -7,7 +7,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-enum ErrorType { Error, INFO, VALID, FATAL };
+enum ErrorType { Error, INFO, VALID, FATAL, WARNING };
 void DBGPrint(ErrorType ErrorMsgType,const char* msg,...);
 
 class ErrorReport {

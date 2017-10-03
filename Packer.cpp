@@ -31,13 +31,14 @@ std::tuple<bool, std::shared_ptr<char>, std::streampos> OpenBinary(std::wstring 
 		ifile.close();
 		// If we got this far , function probably worked perfectly
 		flag = true;
+		DBGPrint(VALID, "Binary of file loaded in memory");
 	}
 	return make_tuple(flag, FileBin, size); // return tuple of gathered data
 }
 
 PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 {
-	DBGPrint( ErrorType::INFO,"Begin Parsing file");
+	//DBGPrint( ErrorType::INFO,"Begin Parsing file");
 	PE_FILE pefile{};
 	const WORD PESignature = 0x5A4D;
 	// Copy the IMAGE_DOS_HEADER of the binary
@@ -97,21 +98,21 @@ PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 	auto First_Section_Header = PE_Header + 0x18 + pefile.inh32.FileHeader.SizeOfOptionalHeader;
 	auto test = PE_Header - sizeof(pefile.ids) - sizeof(IMAGE_NT_HEADERS32) - pefile.MS_DOS_STUB.size();
 	// Copy section headers
-	DBGPrint(ErrorType::INFO,"Begin Section headers Copy");
+	//DBGPrint(ErrorType::INFO,"Begin Section headers Copy");
 	for (auto i = 0; i < pefile.inh32.FileHeader.NumberOfSections; ++i)
 	{
 		memcpy_s(&pefile.ish[i], sizeof(IMAGE_SECTION_HEADER), First_Section_Header + (i * sizeof(IMAGE_SECTION_HEADER)), sizeof(IMAGE_SECTION_HEADER));
 	}
-	DBGPrint( ErrorType::VALID,"End Section headers Copy");
+	//DBGPrint( ErrorType::VALID,"End Section headers Copy");
 	// Copy Sections										
-	DBGPrint(ErrorType::INFO,"Begin Section Copy");
+	//DBGPrint(ErrorType::INFO,"Begin Section Copy");
 		for (auto i = 0; i < pefile.inh32.FileHeader.NumberOfSections; ++i)
 	{
 		std::shared_ptr<char> t_char(new char[pefile.ish[i].SizeOfRawData]{}, std::default_delete<char[]>()); // Section
 		memcpy_s(t_char.get(), pefile.ish[i].SizeOfRawData, FileBin.get() + pefile.ish[i].PointerToRawData, pefile.ish[i].SizeOfRawData); // copy sections.
 		pefile.Sections.push_back(t_char);
 	}
-	DBGPrint(ErrorType::VALID,"End Section Copy");
+	//DBGPrint(ErrorType::VALID,"End Section Copy");
 	int sections_size{};
 	for (WORD i = 0; i < pefile.inh32.FileHeader.NumberOfSections; ++i)
 	{
@@ -121,7 +122,7 @@ PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 	size_t total_size = sections_size + pefile.inh32.OptionalHeader.SizeOfHeaders;
 	pefile.set_sizes(sizeof(pefile.ids), stub_size, sizeof(pefile.inh32), number_of_sections * sizeof(IMAGE_SECTION_HEADER), sections_size, total_size);
 	// Exact Total size must consider space between sections which is big sometimes and the file alignment in optional-header
-	DBGPrint(ErrorType::VALID,"Parsing Completed");
+	DBGPrint(ErrorType::VALID,"File parsing Completed");
 	return pefile;
 }
 
@@ -157,14 +158,14 @@ void ChangeEP(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASec
 	// Pointer to the section headers
 	auto SH = (PIMAGE_SECTION_HEADER)(std::get<1>(bin).get() + PE_Pointer + sizeof(IMAGE_NT_HEADERS));
 	OH->AddressOfEntryPoint = SH[SectionToAdd.getSectionNumber()].VirtualAddress;
+	DBGPrint(VALID, "Successfully changed the entry point to the new section address");
 }
 
 void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd) {
 	// Maybe will add this check later
 	DBGPrint(INFO,"Please manually check that there is enough space between the last section header and first section to inject the header in between\n(Ctrl+C to quit) or press any key to continue");
 	//unsigned char* test = (unsigned char*)std::get<1>(bin).get() + SH[1].PointerToRawData; .text file address for later use
-	//system("pause");
-	DBGPrint(INFO, "Begin Adding Section Header");
+    system("pause");
 	DWORD PE_Pointer = SectionToAdd.getPE_lfanew();
 	// Pointer to the File Header inside the Image_NT_Header32 struct
 	auto FH = (PIMAGE_FILE_HEADER)(std::get<1>(bin).get() + PE_Pointer + sizeof(DWORD));
@@ -188,19 +189,16 @@ void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& b
 																					 IMAGE_SCN_CNT_UNINITIALIZED_DATA  | IMAGE_SCN_MEM_EXECUTE |
 																					 IMAGE_SCN_CNT_INITIALIZED_DATA    | IMAGE_SCN_MEM_READ */
 	OH->SizeOfImage = SH[FH->NumberOfSections].VirtualAddress + SH[FH->NumberOfSections].Misc.VirtualSize;
-	//SH[0].Characteristics = 0xE00000E0; //Writable .text
 	// Incrementing the sections number in the File Header
 	FH->NumberOfSections += 1;
 	SectionToAdd.setEP(SH[FH->NumberOfSections - 1].VirtualAddress);
 	SectionToAdd.setSectionNumber(FH->NumberOfSections - 1);
-	//OH->AddressOfEntryPoint = SH[FH->NumberOfSections-1].VirtualAddress;
-	//auto* poin = std::get<1>(bin).get() + SH[0].PointerToRawData;
-	//EncryptBin(poin, SH[0].SizeOfRawData, 0xA5);
+	DBGPrint(VALID, "Successfully added section header");
 }
 
 void AddSectionData(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, std::string OutputFileName, ASection& SectionToAdd)
 {
-	//auto DOS_Header = (PIMAGE_DOS_HEADER)std::get<1>(bin).get();
+	//auto DOS_Header = (PIMAGE_DOS_HEADER)std::get<1>(bin).get(); // get Dos_header if i need it later 
 	auto inh32 = (PIMAGE_NT_HEADERS)(std::get<1>(bin).get() + SectionToAdd.getPE_lfanew());
 	PIMAGE_SECTION_HEADER FirstSectionHeader = IMAGE_FIRST_SECTION(inh32);
 	PIMAGE_SECTION_HEADER LastAddedSection = FirstSectionHeader + (inh32->FileHeader.NumberOfSections - 1);
@@ -212,6 +210,7 @@ void AddSectionData(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin
 		for (size_t i = 0; i < BytesToFill; ++i)
 			os.write("", 1);
 		os.close();
+		DBGPrint(VALID, "Successfully added the section data");
 	}
 	else
 		throw(ErrorReport("<AddSectionData> Cannot Open file", ErrorType::Error));
@@ -228,6 +227,28 @@ DWORD OffsetToRVA(DWORD offset, IMAGE_SECTION_HEADER *is_hdr, unsigned scount)
 			return offset + is_hdr[i].VirtualAddress - is_hdr[i].PointerToRawData;
 		}
 	return 0;
+}
+
+int char2int(char input)
+{
+	if (input >= '0' && input <= '9')
+		return input - '0';
+	if (input >= 'A' && input <= 'F')
+		return input - 'A' + 10;
+	if (input >= 'a' && input <= 'f')
+		return input - 'a' + 10;
+	throw ErrorReport("Invalid key Argument", ErrorType::Error);
+}
+
+int FindSection(PE_FILE& pe, const char* sec)
+{
+	size_t index = 0;
+	while (index < pe.inh32.FileHeader.NumberOfSections) {
+		if (!strcmp((char*)pe.ish[index].Name, sec))
+			return index;
+		index++;
+	}
+	return -1;
 }
 
 void XorIncCode(char* bin, size_t sz, byte key)
