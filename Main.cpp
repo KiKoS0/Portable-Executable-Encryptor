@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
 	// Encrypt the PE section
 	if (!SectionToEnc.empty())
 	{
-		if (SectionToEnc.compare(".rsrc") || SectionToEnc.compare(".rdata") || SectionToEnc.compare(".idata")) {
+		if (!SectionToEnc.compare(".rsrc") || !SectionToEnc.compare(".rdata") || !SectionToEnc.compare(".idata")) {
 			DBGPrint(WARNING, "You are trying to encrypt a sensible OS section this will probably break the file.Continue anyways ? ");
 			system("pause");
 		};
