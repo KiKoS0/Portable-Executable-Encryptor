@@ -7,8 +7,12 @@ This is a small program that i created for educational purposes that creates a n
 This build currently supports only x86 files.
 You could easily create a new section (header and data) with this program, encrypt an existing section data and inject code into a newly created section.
 The program also has a default decryption code(Xor and increment) that you could inject to make hide sections data and makes them decrypt at runtime.
-Warning: Runtime decryption will only work on PEs that got linked with a static base address as the program doesn't replace the system loader.
-
+## Warning
+Runtime decryption will only work on PEs that got linked with a static base address as the program doesn't replace the system loader.
+```
+/FIXED 
+/DYNAMICBASE:NO
+```
 ### Build
 
 You just need a 2015 update 3  of visual studio or later to build.
