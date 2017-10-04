@@ -37,7 +37,7 @@ class ASection : private Uncopyable {
 	LONG e_lfanew;
 	// Could be easily found here you just combine them by addition "https://msdn.microsoft.com/en-us/library/windows/desktop/ms680341(v=vs.85).aspx"
 	DWORD Charachteristics;
-	// Initially 0, could be set to RVA of of a new added section by a function if you want to change the PE OEP
+	// Initially 0, could be set to RVA of a new added section by a function if you want to change the PE entry point
 	DWORD NewAddressOEP;
 	// Section id when set in a PE (initially 0)
 	size_t SectionNumber;
@@ -71,6 +71,7 @@ public:
 	void setSectionNumber(size_t);
 	void setAlignedSectionSize(DWORD size);
 	void setEP(DWORD);
+	void setCodeSize(size_t);
 };
 
 struct PE_FILE
@@ -112,7 +113,7 @@ void XorIncCode(char* bin,size_t sz, byte key);
 DWORD align(DWORD size, DWORD align, DWORD addr);
 
 // Encryption caller function you can change the encryption function to whatever you want (WARNING: Only in memory, doesn't write to file)
-void EncryptTextBin(std::tuple<bool, std::shared_ptr<char>, std::streampos>& filebin, ASection& SectionToAdd, char * bin, size_t sz, byte key= 0xa5);
+void EncryptTextBin(std::tuple<bool, std::shared_ptr<char>, std::streampos>& filebin, int index, char * bin, size_t sz, byte key = 0xa5);
 
 // Change File Entry Point (WARNING: Only in memory, doesn't write to file)
 void ChangeEP(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd);
@@ -122,5 +123,8 @@ DWORD OffsetToRVA(DWORD offset, IMAGE_SECTION_HEADER *is_hdr, unsigned scount);
 int char2int(char input);
 // Returns the section index or -1 if it didn't find it
 int FindSection(PE_FILE& pe, const char* sec);
+
+std::shared_ptr<char> GenerateDefaultCode(DWORD org, DWORD oep, byte key, DWORD SectionRVA, size_t sectionSize);
+
 
 #endif

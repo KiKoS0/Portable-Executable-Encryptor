@@ -121,7 +121,7 @@ PE_FILE ParsePE(std::shared_ptr<char>FileBin)
 	// Potential total file size (sometimes this calculation is incorrect when the PE file is not well formed)
 	size_t total_size = sections_size + pefile.inh32.OptionalHeader.SizeOfHeaders;
 	pefile.set_sizes(sizeof(pefile.ids), stub_size, sizeof(pefile.inh32), number_of_sections * sizeof(IMAGE_SECTION_HEADER), sections_size, total_size);
-	// Exact Total size must consider space between sections which is big sometimes and the file alignment in optional-header
+	// Exact Total size must consider space between sections and the file alignment in optional-header
 	DBGPrint(ErrorType::VALID,"File parsing Completed");
 	return pefile;
 }
@@ -145,10 +145,11 @@ DWORD align(DWORD size, DWORD align, DWORD addr) {
 }
 
 
-void EncryptTextBin(std::tuple<bool, std::shared_ptr<char>, std::streampos>& filebin,ASection& SectionToAdd,char * bin, size_t sz, byte key/*=0xa5*/)
+void EncryptTextBin(std::tuple<bool, std::shared_ptr<char>, std::streampos>& filebin,int index,char * bin, size_t sz, byte key/*=0xa5*/)
 {
-	auto SH = (PIMAGE_SECTION_HEADER)(std::get<1>(filebin).get() + SectionToAdd.getPE_lfanew() + sizeof(IMAGE_NT_HEADERS));
-	SH[0].Characteristics = 0xE00000E0; // Writable .text
+	auto DOS_Header = (PIMAGE_DOS_HEADER)std::get<1>(filebin).get();
+	auto SH = (PIMAGE_SECTION_HEADER)(std::get<1>(filebin).get() + DOS_Header->e_lfanew + sizeof(IMAGE_NT_HEADERS));
+	SH[index].Characteristics = 0xE00000E0;
 	XorIncCode(bin, sz, key);
 }
 void ChangeEP(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd ) {
@@ -162,9 +163,8 @@ void ChangeEP(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASec
 }
 
 void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& bin, ASection& SectionToAdd) {
-	// Maybe will add this check later
-	DBGPrint(INFO,"Please manually check that there is enough space between the last section header and first section to inject the header in between\n(Ctrl+C to quit) or press any key to continue");
-	//unsigned char* test = (unsigned char*)std::get<1>(bin).get() + SH[1].PointerToRawData; .text file address for later use
+	// add this check later
+	DBGPrint(INFO,"Please manually check that there is enough space between the last section header and first section to inject the header in between\n");
     system("pause");
 	DWORD PE_Pointer = SectionToAdd.getPE_lfanew();
 	// Pointer to the File Header inside the Image_NT_Header32 struct
@@ -189,10 +189,13 @@ void AddSectionHeader(std::tuple<bool, std::shared_ptr<char>, std::streampos>& b
 																					 IMAGE_SCN_CNT_UNINITIALIZED_DATA  | IMAGE_SCN_MEM_EXECUTE |
 																					 IMAGE_SCN_CNT_INITIALIZED_DATA    | IMAGE_SCN_MEM_READ */
 	OH->SizeOfImage = SH[FH->NumberOfSections].VirtualAddress + SH[FH->NumberOfSections].Misc.VirtualSize;
+	SectionToAdd.setEP(SH[FH->NumberOfSections ].VirtualAddress);
+	SectionToAdd.setSectionNumber(FH->NumberOfSections );
+	if (SectionToAdd.getCodeSize() == 0) {
+		//SectionToAdd.CodeP = GenerateDefaultCode(SH[FH->NumberOfSections].VirtualAddress, OH->AddressOfEntryPoint + OH->ImageBase, SH[FH->NumberOfSections].SizeOfRawData,);
+	}
 	// Incrementing the sections number in the File Header
 	FH->NumberOfSections += 1;
-	SectionToAdd.setEP(SH[FH->NumberOfSections - 1].VirtualAddress);
-	SectionToAdd.setSectionNumber(FH->NumberOfSections - 1);
 	DBGPrint(VALID, "Successfully added section header");
 }
 
@@ -251,6 +254,32 @@ int FindSection(PE_FILE& pe, const char* sec)
 	return -1;
 }
 
+std::shared_ptr<char> GenerateDefaultCode(DWORD org,DWORD oep,byte key,DWORD SectionRVA,size_t sectionSize)
+{
+	char DefCode[] = {
+		0x50 ,0x56,0x57 ,0x51 ,0x53,0x8D ,0x3D,0x00 ,0x10 ,0x40 ,0x00 ,0x89 ,0xFE ,
+		0xB9 ,0x00 ,0xF6 ,0x01 ,0x00 ,0xB3 ,0xA5 ,0xFC ,0xAC ,0x30 ,0xD8 ,0xFE ,0xC3 ,
+		0xAA ,0xE2 ,0xF8 ,0x5B ,0x59 ,0x5F ,0x5E ,0x58 ,0xE9 ,0x51 ,0xC7 ,0xFE ,0xFF };
+	const size_t PEPreferredBaseAddress = 0x00400000;
+	const DWORD jmpOffset = 0x27;
+	org += PEPreferredBaseAddress;
+	SectionRVA += PEPreferredBaseAddress;
+	oep += PEPreferredBaseAddress;
+	DWORD dif = oep - org - jmpOffset;
+	unsigned char * Pjmp = (unsigned char*) &DefCode[35];
+	unsigned char * Pkey = (unsigned char*) &DefCode[19];
+	unsigned char * Psize = (unsigned char*) &DefCode[14];
+	unsigned char * Psec = (unsigned char *)&DefCode[7];
+	CopyMemory(Psec, &SectionRVA, sizeof SectionRVA);
+	CopyMemory(Pjmp, &dif, sizeof(dif));
+	CopyMemory(Pkey, &key, sizeof(key));
+	CopyMemory(Psize, &sectionSize, sizeof(sectionSize));
+	std::shared_ptr<char> ret(new char[sizeof DefCode], std::default_delete<char[]>());
+	CopyMemory(ret.get(),DefCode,sizeof DefCode);
+	DBGPrint(VALID, "Successfully generated binary for injection");
+	return ret;
+}
+
 void XorIncCode(char* bin, size_t sz, byte key)
 {
 	size_t i;
@@ -279,6 +308,11 @@ void ASection::setAlignedSectionSize(DWORD size)
 void ASection::setEP(DWORD newOEP)
 {
 	NewAddressOEP = newOEP;
+}
+
+void ASection::setCodeSize(size_t t)
+{
+	CodeSize = t;
 }
 
 std::string ASection::getSectionName() const
