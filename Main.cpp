@@ -159,7 +159,7 @@ int main(int argc, char* argv[]) {
 	// Copy the code to memory
 	CopyMemory(Code.get(), std::get<1>(codeBin).get(), CodeSize);
 	// Creates the added section characteristics
-	ASection section(SectionName, 0, FileMem.ids.e_lfanew, 0xE00000E0, CodeSize, std::get<1>(codeBin));
+	ASection section(SectionName, 512, FileMem.ids.e_lfanew, 0xE00000E0, CodeSize, std::get<1>(codeBin));
 	AddSectionHeader(bin,section);
 	// Encrypt the PE section
 	if (!SectionToEnc.empty())
