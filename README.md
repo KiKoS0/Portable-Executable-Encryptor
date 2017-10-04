@@ -15,14 +15,15 @@ You just need a 2015 update 3  of visual studio or later to build.
 
 ## Parameters
 ```
-[file] Portable Executable file name
-[bin] Binary file to inject in the new section(can be skipped if you don't want to use one or to use the default one)
-	-x [SectionToEncrypt] Finds and encrypts the section data\n"
-	-e Sets file entry point to the newly added section\n"
-	-s [SectionName] Force the name of the new section (.kik is the default)
-	-k [key] Force a new IncXor encryption key (A5 is the default)
-	-o [OutputFileName] Force an output file name ([file].packed is the default)
-	-d Force generation of a default code encryptor and use it
+[file] Portable Executable file name.
+[bin] Binary file to inject in the new section(can be skipped if you don't want to use one or to use the default one).
+	-x [SectionToEncrypt] Finds and encrypts the section data.
+	-e Sets file entry point to the newly added section.
+	-s [SectionName] Force the name of the new section (.kik is the default).
+	-k [key] Force a new IncXor encryption key (A5 is the default).
+	-o [OutputFileName] Force an output file name ([file].packed is the default).
+	-d Force generation of a default code encryptor and use it.
+	-h Will print this parameters guide and quit.
 ```
 ## Examples
 This command for example will encrypt the .text section with 0xA5 as a key, generate a decryption code and inject it in the new section and changes the file entry point to the injectedcode.
